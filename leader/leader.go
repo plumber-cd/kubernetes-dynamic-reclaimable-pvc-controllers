@@ -63,7 +63,14 @@ func Elect(config *Config) {
 		RetryPeriod:     5 * time.Second,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				config.Run(ctx, config.StopCh, config.Config, config.Client, config.Namespace, config.ControllerId)
+				config.Run(
+					ctx,
+					config.StopCh,
+					config.Config,
+					config.Client,
+					config.Namespace,
+					config.ControllerId,
+				)
 			},
 			OnStoppedLeading: func() {
 				klog.Infof("leader lost: %s", config.ID)

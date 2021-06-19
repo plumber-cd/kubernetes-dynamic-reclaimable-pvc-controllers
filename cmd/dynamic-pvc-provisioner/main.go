@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	var p *provisioner.Provisioner
+	var c controller.Controller
 	run := func(
 		ctx context.Context,
 		stopCh <-chan struct{},
@@ -19,13 +19,13 @@ func main() {
 		namespace string,
 		controllerId string,
 	) {
-		p = provisioner.New(ctx, client, namespace, controllerId)
-		if err := p.Run(2, stopCh); err != nil {
+		c = provisioner.New(ctx, client, namespace, controllerId)
+		if err := c.Run(2, stopCh); err != nil {
 			klog.Fatalf("Error running provisioner: %s", err.Error())
 		}
 	}
 	stop := func(config *rest.Config, client *clientset.Clientset) {
-		p.Stop()
+		c.Stop()
 	}
 	controller.Main(run, stop)
 }
