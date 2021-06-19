@@ -94,11 +94,11 @@ Once `Released` - PVs doesn't have any indication that they were once associated
 Releaser listens for PV creations/updates.
 The following conditions must be met for a PV to be associated with a Releaser:
 
-- PV doesn't already have `metadata.labels."reclaimable-pvc-releaser.kubernetes.io/managed-by"` association.
+- PV doesn't already have `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` association.
 - `spec.claimRef` must refer to a PVC that has `metadata.labels."dynamic-pvc-provisioner.kubernetes.io/managed-by"` set to this Controller ID.
 - `--disable-automatic-association` must be `false`.
 
-To establish association Releaser will set itself to `metadata.labels."reclaimable-pvc-releaser.kubernetes.io/managed-by"` on this PV.
+To establish association Releaser will set itself to `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` on this PV.
 
 ### Release
 
@@ -106,8 +106,8 @@ Releaser periodically searches for PVs to be released.
 Releaser also listens for PVCs deletions with `metadata.labels."dynamic-pvc-provisioner.kubernetes.io/managed-by"` set to this Controller ID and that triggers release routine ahead of the schedule.
 The following conditions must be met for a PV to be made `Available`:
 
-- `metadata.labels."reclaimable-pvc-releaser.kubernetes.io/managed-by"` must be set to this Controller ID.
+- `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` must be set to this Controller ID.
 - `spec.claimRef` must be pointing to a non-existent PVC.
 - `status.phase` must be `Released`.
 
-If these conditions are met, Releaser will set `spec.claimRef` to `null`. That will make Kubernetes eventually to mark `status.phase` of this PV as `Available` - making other PVCs able to reclaim this PV. Releaser will also delete `metadata.labels."reclaimable-pvc-releaser.kubernetes.io/managed-by"` to remove association - the next PVC might be managed by something else.
+If these conditions are met, Releaser will set `spec.claimRef` to `null`. That will make Kubernetes eventually to mark `status.phase` of this PV as `Available` - making other PVCs able to reclaim this PV. Releaser will also delete `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` to remove association - the next PVC might be managed by something else.
