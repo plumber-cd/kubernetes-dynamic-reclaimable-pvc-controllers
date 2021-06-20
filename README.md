@@ -23,6 +23,8 @@ Dynamic PVC provisioner for pods requesting it via annotations. Automatic PV rel
 
 ## PVC Provisioner Controller
 
+### Provision
+
 Pods can request PVC to be automatically created for it via the annotation:
 
 ```yaml
@@ -72,6 +74,59 @@ Provisioner will apply following modifications to the `dynamic-pvc-provisioner.k
 - `metadata.labels."dynamic-pvc-provisioner.kubernetes.io/managed-by"` will be set to refer to the current Controller ID.
 - `metadata.ownerReferences` will be set referring to the current pod as an owner - guaranteeing PVC to be deleted when the pod is deleted.
 
+### Usage
+
+```
+Usage of dynamic-pvc-provisioner:
+  -add_dir_header
+    	If true, adds the file directory to the header of the log messages
+  -alsologtostderr
+    	log to standard error as well as files
+  -controller-id string
+    	this controller identity name - use the same string for both provisioner and releaser
+  -kubeconfig string
+    	optional, absolute path to the kubeconfig file
+  -lease-lock-id string
+    	optional, the lease lock holder identity name (default <computed>)
+  -lease-lock-name string
+    	the lease lock resource name
+  -lease-lock-namespace string
+    	optional, the lease lock resource namespace; default to -namespace
+  -log_backtrace_at value
+    	when logging hits line file:N, emit a stack trace
+  -log_dir string
+    	If non-empty, write log files in this directory
+  -log_file string
+    	If non-empty, use this log file
+  -log_file_max_size uint
+    	Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited. (default 1800)
+  -logtostderr
+    	log to standard error instead of files (default true)
+  -namespace string
+    	limit to a specific namespace - only for provisioner
+  -one_output
+    	If true, only write logs to their native severity level (vs also writing to each lower severity level)
+  -skip_headers
+    	If true, avoid header prefixes in the log messages
+  -skip_log_headers
+    	If true, avoid headers when opening log files
+  -stderrthreshold value
+    	logs at or above this threshold go to stderr (default 2)
+  -v value
+    	number for the log level verbosity
+  -vmodule value
+    	comma-separated list of pattern=N settings for file-filtered logging
+```
+
+Example:
+
+```
+dynamic-pvc-provisioner \
+  -controller-id reclaimable-pvc-test \
+  -namespace default \
+  -lease-lock-name reclaimable-pvc-provisioner-test
+```
+
 ## PV Releaser Controller
 
 For Releaser to be able to make PVs claimed by Provisioner `Available` after PVC is gone - Releaser and Provisioner must share the same Controller ID.
@@ -98,3 +153,58 @@ The following conditions must be met for a PV to be made `Available`:
 - `status.phase` must be `Released`.
 
 If these conditions are met, Releaser will set `spec.claimRef` to `null`. That will make Kubernetes eventually to mark `status.phase` of this PV as `Available` - making other PVCs able to reclaim this PV. Releaser will also delete `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` to remove association - the next PVC might be managed by something else.
+
+### Usage
+
+```
+Usage of reclaimable-pv-releaser:
+  -add_dir_header
+    	If true, adds the file directory to the header of the log messages
+  -alsologtostderr
+    	log to standard error as well as files
+  -controller-id string
+    	this controller identity name - use the same string for both provisioner and releaser
+  -disable-automatic-association
+    	disable automatic PV association
+  -kubeconfig string
+    	optional, absolute path to the kubeconfig file
+  -lease-lock-id string
+    	optional, the lease lock holder identity name (default <computed>)
+  -lease-lock-name string
+    	the lease lock resource name
+  -lease-lock-namespace string
+    	optional, the lease lock resource namespace; default to -namespace
+  -log_backtrace_at value
+    	when logging hits line file:N, emit a stack trace
+  -log_dir string
+    	If non-empty, write log files in this directory
+  -log_file string
+    	If non-empty, use this log file
+  -log_file_max_size uint
+    	Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited. (default 1800)
+  -logtostderr
+    	log to standard error instead of files (default true)
+  -namespace string
+    	limit to a specific namespace - only for provisioner
+  -one_output
+    	If true, only write logs to their native severity level (vs also writing to each lower severity level)
+  -skip_headers
+    	If true, avoid header prefixes in the log messages
+  -skip_log_headers
+    	If true, avoid headers when opening log files
+  -stderrthreshold value
+    	logs at or above this threshold go to stderr (default 2)
+  -v value
+    	number for the log level verbosity
+  -vmodule value
+    	comma-separated list of pattern=N settings for file-filtered logging
+```
+
+Example:
+
+```
+reclaimable-pv-releaser \
+  -controller-id reclaimable-pvc-test \
+  -lease-lock-name reclaimable-pvc-releaser-test \
+  -lease-lock-namespace default
+```

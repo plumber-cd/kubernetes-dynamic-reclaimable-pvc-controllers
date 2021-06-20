@@ -107,8 +107,8 @@ func Main(
 	var leaseLockName string
 	var leaseLockNamespace string
 
-	flag.StringVar(&kubeconfig, "kubeconfig", "", "absolute path to the kubeconfig file")
-	flag.StringVar(&controllerId, "controller-id", uuid.New().String(), "this controller identity name - use the same string for both provisioner and releaser")
+	flag.StringVar(&kubeconfig, "kubeconfig", "", "optional, absolute path to the kubeconfig file")
+	flag.StringVar(&controllerId, "controller-id", "", "this controller identity name - use the same string for both provisioner and releaser")
 	flag.StringVar(&namespace, "namespace", "", "limit to a specific namespace - only for provisioner")
 	flag.StringVar(&leaseLockId, "lease-lock-id", uuid.New().String(), "optional, the lease lock holder identity name")
 	flag.StringVar(&leaseLockName, "lease-lock-name", "", "the lease lock resource name")
@@ -119,6 +119,10 @@ func Main(
 		klog.V(2).Infof("-%s=%s", f.Name, f.Value)
 	})
 	klog.V(2).Infof("Args: %s", flag.Args())
+
+	if controllerId == "" {
+		klog.Fatal("unable to get controller id (missing controller-id flag).")
+	}
 
 	if leaseLockNamespace == "" {
 		leaseLockNamespace = namespace
