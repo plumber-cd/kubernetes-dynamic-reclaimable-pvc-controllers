@@ -1,0 +1,66 @@
+name: Create Release
+
+# on: push
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set RELEASE_STRING
+        run: echo "RELEASE_STRING=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+        # run: echo "RELEASE_STRING=0.0.1-dev" >> $GITHUB_ENV
+      - name: Set RELEASE_VERSION
+        run: echo "RELEASE_VERSION=v${RELEASE_STRING}" >> $GITHUB_ENV
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to DockerHub
+        uses: docker/login-action@v1 
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and Push
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          build-args: |
+            RELEASE_STRING=${{ env.RELEASE_STRING }}
+          push: true
+          tags: |
+            plumbit/kubernetes-dynamic-reclaimable-pvc-controllers:${{ env.RELEASE_VERSION }}
+            plumbit/kubernetes-dynamic-reclaimable-pvc-controllers:latest
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
+      # See https://github.com/peter-evans/dockerhub-description/issues/10
+      # - name: Checkout Code
+      #   uses: actions/checkout@v2
+      # - name: Docker Hub Description
+      #   uses: peter-evans/dockerhub-description@v2
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+      #     short-description: Dynamic PVC provisioner for pods and jobs requesting it via annotations. Automatic PV releaser.
+      #     repository: plumbit/kubernetes-dynamic-reclaimable-pvc-controllers
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+      - name: Release
+        uses: docker://antonyurchenko/git-release:v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRAFT_RELEASE: "false"
+          PRE_RELEASE: "false"
+          CHANGELOG_FILE: "CHANGELOG.md"
+          ALLOW_EMPTY_CHANGELOG: "false"
+          ALLOW_TAG_PREFIX: "true"
