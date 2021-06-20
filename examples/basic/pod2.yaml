@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-dynamic-reclaimable-pvc-2
+  annotations:
+    dynamic-pvc-provisioner.kubernetes.io/foo.enabled: "false"
+    dynamic-pvc-provisioner.kubernetes.io/reclaimable-pvc.enabled: "true"
+    dynamic-pvc-provisioner.kubernetes.io/reclaimable-pvc.pvc: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      spec:
+        storageClassName: reclaimable-storage-class
+        resources:
+          requests:
+            storage: 1Gi
+        accessModes:
+          - ReadWriteOnce
+spec:
+  volumes:
+    - name: reclaimable-pvc
+      persistentVolumeClaim:
+        claimName: reclaimable-pvc-2
+  containers:
+    - name: web
+      image: nginx
+      volumeMounts:
+        - name: reclaimable-pvc
+          mountPath: /data

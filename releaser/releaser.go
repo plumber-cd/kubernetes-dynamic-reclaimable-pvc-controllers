@@ -191,7 +191,8 @@ func (r *Releaser) pvAssociateHandler(pv *corev1.PersistentVolume) error {
 	pvCopy.ObjectMeta.Labels[LabelManagedBy] = r.ControllerId
 	_, err = r.KubeClientSet.CoreV1().PersistentVolumes().Update(r.Ctx, pvCopy, metav1.UpdateOptions{})
 	if err != nil {
-		if errors.HasStatusCause(err, metav1.CauseTypeResourceVersionTooLarge) {
+		if errors.IsConflict(err) {
+			klog.V(4).Infof("PV %s had a conflict - ignore it, it will be queued again with a new version", pv.ObjectMeta.Name)
 			return nil
 		}
 
@@ -219,7 +220,8 @@ func (r *Releaser) pvReleaseHandler(pv *corev1.PersistentVolume) error {
 	delete(pvCopy.ObjectMeta.Labels, LabelManagedBy)
 	_, err := r.KubeClientSet.CoreV1().PersistentVolumes().Update(r.Ctx, pvCopy, metav1.UpdateOptions{})
 	if err != nil {
-		if errors.HasStatusCause(err, metav1.CauseTypeResourceVersionTooLarge) {
+		if errors.IsConflict(err) {
+			klog.V(4).Infof("PV %s had a conflict - ignore it, it will be queued again with a new version", pv.ObjectMeta.Name)
 			return nil
 		}
 

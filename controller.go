@@ -299,6 +299,10 @@ func (c *BasicController) ProcessNextWorkItem(
 			return nil
 		}
 		if err = handler(namespace, name); err != nil {
+			if err == context.Canceled {
+				klog.V(6).Info(err)
+				return nil
+			}
 			queue.AddRateLimited(key)
 			return fmt.Errorf("error syncing %s '%s': %s, requeuing", name, key, err.Error())
 		}
