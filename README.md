@@ -5,6 +5,11 @@ Dynamic PVC provisioner for pods requesting it via annotations. Automatic PV rel
 - [kubernetes-dynamic-reclaimable-pvc-controllers](#kubernetes-dynamic-reclaimable-pvc-controllers)
   - [Features](#features)
   - [Disclaimers](#disclaimers)
+  - [Why do I need this?](#why-do-i-need-this)
+    - [Why `reclaimPolicy: Retain` is not enough?](#why-reclaimpolicy-retain-is-not-enough)
+    - [Why not a static PVC?](#why-not-a-static-pvc)
+    - [Why not StatefulSets?](#why-not-statefulsets)
+    - [But why dynamic PVC provisioning from the pod annotations?](#but-why-dynamic-pvc-provisioning-from-the-pod-annotations)
   - [PVC Provisioner Controller](#pvc-provisioner-controller)
     - [Provision](#provision)
     - [Usage](#usage)
@@ -32,6 +37,32 @@ Dynamic PVC provisioner for pods requesting it via annotations. Automatic PV rel
 **Provisioner Controller ignores RBAC. If the user creating the Pod didn't had permissions to create PVC - it will still be created as long as Provisioner has access to do it.**
 
 **Releaser Controller is by design automatically makes PVs with `reclaimPolicy: Retain` available to be reclaimed by other consumers without cleaning up any data. Use it with caution - this behavior might not be desirable in most cases. Any data left on the PV after the previous consumer will be available to all the following consumers. You may want to use StatefulSets instead. This controller might be ideal for something like build cache - insensitive data by design required to be shared among different consumers. There is many use cases for this, one of them is documented in [examples/jenkins-kubernetes-plugin-with-build-cache](examples/jenkins-kubernetes-plugin-with-build-cache).**
+
+## Why do I need this?
+
+Essentially these two controllers allows you to have a storage pool of reusable PVs.
+
+The problem statement for creating this was - I need a pool of CI/CD build caches that can be re-used by my build pods but not allowed to be used concurrently.
+
+### Why `reclaimPolicy: Retain` is not enough?
+
+When PVC that were using PV with `reclaimPolicy: Retain` is deleted - Kubernetes marks this PV `Released`. Fortunately, this does not let any other PVC to start using it. I say fortunately because imagine if it did - meaning all the data on the volume could be accessed by a new consumer. This is not what `reclaimPolicy: Retain` is designed for - it only allows cluster administrators to recover the data after accidental PVC deletion. Even now deprecated `reclaimPolicy: Recycle` was performing a cleanup before making PV `Available` again. Unfortunately, this just doesn't work for something like a CI/CD build cache, where you intentionally want to reuse data from the previous consumer.
+
+### Why not a static PVC?
+
+One way to approach this problem statement would be just create a static PVC with `accessModes: ["ReadWriteMany"]` - and it would work in most of the cases. But it has certain limitations - let's start with the fact `ReadWriteMany` is not supported by many storage types (example: EBS). The ones that do support (another popular choice - EFS) most likely based on NFS which does not support an FS-level locking. Even if you got a storage type that supports both `ReadWriteMany` and FS level locking - many tools just doesn't seem to use FS level locking (or have other bugs related to concurrent cache usage). All this can lead to various race conditions failing your builds. That can be solved by making different builds to isolate themselves into a different sub-folders, but that reduces overall efficiency - performance gain will be smaller and you'll have a lot of duplicated cache for commonly used transitive build dependencies.
+
+### Why not StatefulSets?
+
+StatefulSets are idiomatic way to reuse PVs and preserve data in Kubernetes. It works great for most of the stateful workload types - unfortunately it doesn't suit very well for CI/CD. Build pods are most likely dynamically generated in CI/CD, each pod is crafted for a specific project, with containers to bring in tools that are needed for this specific project. A simple example - one project might need a MySQL container for its unit tests while another might need a PostgreSQL container - but both are Maven projects so both need a Maven cache. You can't do this with StatefulSets where all the pods are exactly the same.
+
+### But why dynamic PVC provisioning from the pod annotations?
+
+Everything said above explains only the need in automatic PV Releaser, but what is dynamic PVC Provisioner for?
+
+Indeed you might not need it in most of the cases, that's why PVC Provisioner and PV Releaser are two separate controllers and they could be deployed separately. And that's why PV Releaser can disable automatic PV association. If you want to craft either PV or PVC by yourself - you can do that, just don't forget to put a label on it so PV Releaser knows it needs to make it `Available`.
+
+Some CI/CD engines like Jenkins with Kubernetes Plugin lets you only define a build pod and no additional resources. That makes PV Releaser unusable as something needs to create a PVC for the build pod. PVC Provisioner is a great workaround in this case - you can define a PVC right on the pod as annotation.
 
 ## PVC Provisioner Controller
 
