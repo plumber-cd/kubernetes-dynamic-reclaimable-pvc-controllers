@@ -205,7 +205,7 @@ func (r *Releaser) pvAssociateHandler(pv *corev1.PersistentVolume) error {
 
 func (r *Releaser) pvReleaseHandler(pv *corev1.PersistentVolume) error {
 	if pv.Status.Phase != corev1.VolumeReleased {
-		klog.V(4).Infof("PV %s is '%s', can't make it reclaimable", pv.ObjectMeta.Name, pv.Status.Phase)
+		klog.V(4).Infof("PV %s is '%s', can't make it '%s'", pv.ObjectMeta.Name, pv.Status.Phase, corev1.VolumeAvailable)
 		return nil
 	}
 
