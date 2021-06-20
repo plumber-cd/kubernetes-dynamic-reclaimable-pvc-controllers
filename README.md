@@ -182,7 +182,7 @@ Releaser listens for PV creations/updates.
 The following conditions must be met for a PV to be associated with a Releaser:
 
 - PV doesn't already have `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` association.
-- `spec.claimRef` must refer to a PVC that has `metadata.labels."dynamic-pvc-provisioner.kubernetes.io/managed-by"` set to this Controller ID.
+- `spec.claimRef` must refer to a PVC that either has `metadata.labels."dynamic-pvc-provisioner.kubernetes.io/managed-by"` or `reclaimable-pv-releaser.kubernetes.io/managed-by` set to this Controller ID. If both labels are set - both should point to this Controller ID.
 - `--disable-automatic-association` must be `false`.
 
 To establish association Releaser will set itself to `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` on this PV.
