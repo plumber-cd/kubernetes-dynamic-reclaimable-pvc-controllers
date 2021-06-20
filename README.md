@@ -12,6 +12,7 @@ Dynamic PVC provisioner for pods requesting it via annotations. Automatic PV rel
     - [Associate](#associate)
     - [Release](#release)
     - [Usage](#usage-1)
+  - [Helm](#helm)
 
 ## Features
 
@@ -219,3 +220,21 @@ reclaimable-pv-releaser \
   -lease-lock-name reclaimable-pvc-releaser-test \
   -lease-lock-namespace default
 ```
+
+## Helm
+
+You can deploy both controllers using Helm:
+
+```
+helm repo add plumber-cd https://plumber-cd.github.io/helm/
+helm repo update
+helm install provisioner plumber-cd/dynamic-pvc-provisioner
+helm install releaser plumber-cd/reclaimable-pv-releaser
+```
+
+See [https://github.com/plumber-cd/helm](https://github.com/plumber-cd/helm).
+
+Values:
+
+- Provisioner: [https://github.com/plumber-cd/helm/blob/main/charts/dynamic-pvc-provisioner/values.yaml](https://github.com/plumber-cd/helm/blob/main/charts/dynamic-pvc-provisioner/values.yaml)
+- Releaser: [https://github.com/plumber-cd/helm/blob/main/charts/reclaimable-pv-releaser/values.yaml](https://github.com/plumber-cd/helm/blob/main/charts/reclaimable-pv-releaser/values.yaml)
