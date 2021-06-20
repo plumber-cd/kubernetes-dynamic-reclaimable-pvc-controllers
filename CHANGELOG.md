@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2021-06-20
+
+### Fixed
+
+- Do not remove PV association if `-disable-automatic-association` was `true` - we didn't set it in the first place
+
 ## [0.0.2] - 2021-06-19
 
 ### Fixed
