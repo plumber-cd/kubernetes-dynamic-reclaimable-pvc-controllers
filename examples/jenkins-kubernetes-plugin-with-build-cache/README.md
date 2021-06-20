@@ -3,7 +3,7 @@ First, create a StorageClass. You can use this [example](../basic/sc.yaml).
 
 Now, you can do something like this in your Jenkinsfile:
 
-```jenkinsfile
+```groovy
 def pvcName = "some-randomly-generated-name"
 podTemplate(yaml: """
     apiVersion: v1
