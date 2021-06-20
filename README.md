@@ -13,6 +13,7 @@ Dynamic PVC provisioner for pods requesting it via annotations. Automatic PV rel
 - Provisioner and Releaser are two separate controllers under one roof, and they can be deployed separately.
   - You can use Provisioner alone for something like Jenkins Kubernetes plugin that doesn't allow PVC creation on its own and automate PVC provisioning from the pod requests. Provisioner on its own will not make PVs automatically reclaimable.
   - You can use Releaser alone - provided you associate either your PVCs or PVs with it on your own. That will set PVCs able to automatically reclaim associated PVs with whatever data left in it from previous consumer.
+- To make Releaser and Deployer work together - they need to have the same `--controller-id`.
 
 ## Disclaimers
 

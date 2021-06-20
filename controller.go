@@ -112,7 +112,7 @@ func Main(
 	flag.StringVar(&namespace, "namespace", "", "limit to a specific namespace - only for provisioner")
 	flag.StringVar(&leaseLockId, "lease-lock-id", uuid.New().String(), "optional, the lease lock holder identity name")
 	flag.StringVar(&leaseLockName, "lease-lock-name", "", "the lease lock resource name")
-	flag.StringVar(&leaseLockNamespace, "lease-lock-namespace", "", "the lease lock resource namespace")
+	flag.StringVar(&leaseLockNamespace, "lease-lock-namespace", "", "optional, the lease lock resource namespace; default to -namespace")
 	flag.Parse()
 
 	flag.Visit(func(f *flag.Flag) {
@@ -120,9 +120,6 @@ func Main(
 	})
 	klog.V(2).Infof("Args: %s", flag.Args())
 
-	if leaseLockName == "" {
-		leaseLockName = controllerId
-	}
 	if leaseLockNamespace == "" {
 		leaseLockNamespace = namespace
 	}
