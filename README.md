@@ -5,7 +5,7 @@ Dynamic PVC provisioner for pods requesting it via annotations. Automatic PV rel
 ## Features
 
 - PVC Provisioner
-  - Dynamically create PVC for Pods or Jobs requesting it via the annotations.
+  - Dynamically create PVC for Pods requesting it via the annotations.
   - Pod is automatically set as `ownerReferences` to the PVC - guaranteeing its deletions upon Pod deletion.
 - PV Releaser
   - Automatically associates Releaser with PVs claimed by PVCs that were created by Provisioner with the same `--controller-id`.
