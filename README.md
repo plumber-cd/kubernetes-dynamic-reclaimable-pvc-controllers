@@ -61,6 +61,7 @@ The following conditions must be met in order for provisioner to create requeste
 - `dynamic-pvc-provisioner.kubernetes.io/<volumeName>.pvc` must be set to a valid yaml or json representing a single `PersistentVolumeClaim` object.
 - `spec.volumes[].name` with that name must exist and have `spec.volumes[].persistentVolumeClaim` on it.
 - `spec.volumes[].persistentVolumeClaim.claimName` must not already exist.
+- `status.phase` must be `Pending`
 
 If all these conditions are met - this controller will automatically create a PVC as defined in `dynamic-pvc-provisioner.kubernetes.io/<volumeName>.pvc`.
 
@@ -89,12 +90,10 @@ To establish association Releaser will set itself to `metadata.labels."reclaimab
 
 ### Release
 
-Releaser periodically searches for PVs to be released.
-Releaser also listens for PVCs deletions with `metadata.labels."dynamic-pvc-provisioner.kubernetes.io/managed-by"` set to this Controller ID and that triggers release routine ahead of the schedule.
+Releaser watches for PVs to be released.
 The following conditions must be met for a PV to be made `Available`:
 
 - `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` must be set to this Controller ID.
-- `spec.claimRef` must be pointing to a non-existent PVC.
 - `status.phase` must be `Released`.
 
 If these conditions are met, Releaser will set `spec.claimRef` to `null`. That will make Kubernetes eventually to mark `status.phase` of this PV as `Available` - making other PVCs able to reclaim this PV. Releaser will also delete `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` to remove association - the next PVC might be managed by something else.

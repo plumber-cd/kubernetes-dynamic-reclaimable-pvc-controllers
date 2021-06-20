@@ -25,7 +25,9 @@ func main() {
 		}
 	}
 	stop := func(config *rest.Config, client *clientset.Clientset) {
-		c.Stop()
+		if c != nil {
+			c.Stop()
+		}
 	}
 	controller.Main(run, stop)
 }

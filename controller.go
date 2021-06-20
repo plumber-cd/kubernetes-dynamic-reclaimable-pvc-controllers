@@ -227,8 +227,10 @@ func (c *BasicController) Run(
 	threadiness int,
 	stopCh <-chan struct{},
 	setup func(threadiness int, stopCh <-chan struct{}) error,
+	shutdown func(),
 ) error {
 	defer utilruntime.HandleCrash()
+	defer shutdown()
 
 	klog.Infof("Starting %s controller", c.ControllerName)
 
@@ -280,7 +282,7 @@ func (c *BasicController) ProcessNextWorkItem(
 	obj, shutdown := queue.Get()
 
 	if shutdown {
-		klog.V(5).Infof("Object %#v quit", obj)
+		klog.V(6).Infof("Object %v quit", obj)
 		return false
 	}
 
@@ -290,7 +292,7 @@ func (c *BasicController) ProcessNextWorkItem(
 		var ok bool
 		if key, ok = obj.(string); !ok {
 			queue.Forget(obj)
-			utilruntime.HandleError(fmt.Errorf("expected string in the queue but got %#v", obj))
+			utilruntime.HandleError(fmt.Errorf("expected string in the queue but got %v", obj))
 			return nil
 		}
 		namespace, name, err := cache.SplitMetaNamespaceKey(key)

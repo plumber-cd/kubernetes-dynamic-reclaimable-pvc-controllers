@@ -31,9 +31,10 @@ const (
 
 	LabelBaseName     = AnnotationBaseName
 	LabelManagedByKey = "managed-by"
+	LabelManagedBy    = LabelBaseName + "/" + LabelManagedByKey
 
-	SuccessSynced    = "Synced"
-	MessagePodSynced = "Pod synced successfully"
+	PVCProvisioned        = "PVCProvisioned"
+	MessagePVCProvisioned = "PVC created successfully"
 
 	MessageMissingPVC = "'%s' missing PVC"
 	ErrMissingPVC     = "ErrMissingPVC"
@@ -90,8 +91,6 @@ func (p *Provisioner) Run(threadiness int, stopCh <-chan struct{}) error {
 		threadiness,
 		stopCh,
 		func(threadiness int, stopCh <-chan struct{}) error {
-			defer p.PodsQueue.ShutDown()
-
 			klog.V(2).Info("Waiting for informer caches to sync")
 			if ok := cache.WaitForCacheSync(stopCh, p.PodsSynced); !ok {
 				return fmt.Errorf("failed to wait for caches to sync")
@@ -107,6 +106,11 @@ func (p *Provisioner) Run(threadiness int, stopCh <-chan struct{}) error {
 			}
 
 			return nil
+		},
+		func() {
+			if p.PodsQueue != nil {
+				p.PodsQueue.ShutDown()
+			}
 		},
 	)
 }
@@ -128,6 +132,13 @@ func (p *Provisioner) podSyncHandler(namespace, name string) error {
 		}
 
 		return err
+	}
+
+	if pod.Status.Phase != corev1.PodPending {
+		klog.V(5).Info(
+			fmt.Sprintf("pod '%s/%s' is not in '%s' status, skip", namespace, name, corev1.PodPending),
+		)
+		return nil
 	}
 
 	annotations := pod.ObjectMeta.Annotations
@@ -202,7 +213,6 @@ func (p *Provisioner) podSyncHandler(namespace, name string) error {
 		)
 	}
 
-	updated := false
 	for requestedVolume, claimName := range requestedVolumes {
 		if claimName == "" {
 			p.Recorder.Event(
@@ -263,11 +273,8 @@ func (p *Provisioner) podSyncHandler(namespace, name string) error {
 
 			return err
 		}
-		updated = true
+		p.Recorder.Event(pod, corev1.EventTypeNormal, PVCProvisioned, MessagePVCProvisioned)
 	}
 
-	if updated {
-		p.Recorder.Event(pod, corev1.EventTypeNormal, SuccessSynced, MessagePodSynced)
-	}
 	return nil
 }

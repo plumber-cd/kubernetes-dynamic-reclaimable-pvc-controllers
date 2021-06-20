@@ -2,14 +2,19 @@ package main
 
 import (
 	"context"
+	"flag"
 	controller "github.com/plumber-cd/kubernetes-dynamic-reclaimable-pvc-controllers"
+	"github.com/plumber-cd/kubernetes-dynamic-reclaimable-pvc-controllers/releaser"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	klog "k8s.io/klog/v2"
-	"time"
 )
 
 func main() {
+	var disableAutomaticAssociation bool
+	flag.BoolVar(&disableAutomaticAssociation, "disable-automatic-association", false, "disable automatic PV association")
+
+	var c controller.Controller
 	run := func(
 		ctx context.Context,
 		stopCh <-chan struct{},
@@ -18,13 +23,15 @@ func main() {
 		namespace string,
 		controllerId string,
 	) {
-		klog.Info("Releaser starting...")
-
-		select {}
+		c = releaser.New(ctx, client, namespace, controllerId, disableAutomaticAssociation)
+		if err := c.Run(2, stopCh); err != nil {
+			klog.Fatalf("Error running releaser: %s", err.Error())
+		}
 	}
 	stop := func(config *rest.Config, client *clientset.Clientset) {
-		klog.Info("Releaser stopping...")
-		time.Sleep(60 * time.Second)
+		if c != nil {
+			c.Stop()
+		}
 	}
 	controller.Main(run, stop)
 }
