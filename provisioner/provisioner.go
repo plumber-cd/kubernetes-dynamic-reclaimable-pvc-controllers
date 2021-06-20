@@ -44,6 +44,9 @@ const (
 
 	MessageMissingVolume = "Pod was missing volume '%s'"
 	ErrMissingVolume     = "ErrMissingVolume"
+
+	MessagePVCProvisionFailed = "PVC failed to create"
+	ErrPVCProvisionFailed     = "ErrPVCProvisionFailed"
 )
 
 type Provisioner struct {
@@ -271,6 +274,7 @@ func (p *Provisioner) podSyncHandler(namespace, name string) error {
 				continue
 			}
 
+			p.Recorder.Event(pod, corev1.EventTypeWarning, ErrPVCProvisionFailed, MessagePVCProvisionFailed)
 			return err
 		}
 		p.Recorder.Event(pod, corev1.EventTypeNormal, PVCProvisioned, MessagePVCProvisioned)
