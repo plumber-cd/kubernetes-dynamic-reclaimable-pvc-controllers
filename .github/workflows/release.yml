@@ -11,9 +11,11 @@ jobs:
     name: Docker
     runs-on: ubuntu-latest
     steps:
+      - name: Set RELEASE_STRING
+        # run: echo "RELEASE_STRING=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+        run: echo "RELEASE_STRING=0.0.1-dev" >> $GITHUB_ENV
       - name: Set RELEASE_VERSION
-        # run: echo ::set-env name=RELEASE_VERSION::${GITHUB_REF#refs/*/}
-        run: echo ::set-env name=RELEASE_VERSION::0.0.1-dev
+        run: echo "RELEASE_VERSION=v${RELEASE_STRING}" >> $GITHUB_ENV
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
@@ -28,7 +30,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           build-args: |
-            RELEASE_VERSION=${{ env.RELEASE_VERSION }}
+            RELEASE_STRING=${{ env.RELEASE_STRING }}
           push: true
           tags: |
             plumbit/kubernetes-dynamic-reclaimable-pvc-controllers:${{ env.RELEASE_VERSION }}
