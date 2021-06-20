@@ -211,7 +211,10 @@ func (r *Releaser) pvReleaseHandler(pv *corev1.PersistentVolume) error {
 
 	pvCopy := pv.DeepCopy()
 	pvCopy.Spec.ClaimRef = nil
-	delete(pvCopy.ObjectMeta.Labels, LabelManagedBy)
+	if !r.DisableAutomaticAssociation {
+		klog.V(4).Infof("Removing PV %s association with myself ('%s')", pv.ObjectMeta.Name, r.ControllerId)
+		delete(pvCopy.ObjectMeta.Labels, LabelManagedBy)
+	}
 	_, err := r.KubeClientSet.CoreV1().PersistentVolumes().Update(r.Ctx, pvCopy, metav1.UpdateOptions{})
 	if err != nil {
 		if errors.IsConflict(err) {
