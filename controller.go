@@ -39,6 +39,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
+var Version string
+
 func buildConfig(kubeconfig string) (*rest.Config, error) {
 	if kubeconfig != "" {
 		klog.V(2).Infof("Using kubeconfig %s", kubeconfig)
@@ -119,6 +121,11 @@ func Main(
 		klog.V(2).Infof("-%s=%s", f.Name, f.Value)
 	})
 	klog.V(2).Infof("Args: %s", flag.Args())
+
+	if len(flag.Args()) == 1 && flag.Args()[0] == "version" {
+		fmt.Println(Version)
+		os.Exit(0)
+	}
 
 	if controllerId == "" {
 		klog.Fatal("unable to get controller id (missing controller-id flag).")
