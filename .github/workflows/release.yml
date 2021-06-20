@@ -1,5 +1,6 @@
 name: Create Release
 
+on: push
 # on:
 #   push:
 #     tags:
