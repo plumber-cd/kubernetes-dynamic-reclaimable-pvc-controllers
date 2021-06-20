@@ -37,15 +37,16 @@ jobs:
             plumbit/kubernetes-dynamic-reclaimable-pvc-controllers:latest
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
-      - name: Checkout Code
-        uses: actions/checkout@v2
-      - name: Docker Hub Description
-        uses: peter-evans/dockerhub-description@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          short-description: Dynamic PVC provisioner for pods and jobs requesting it via annotations. Automatic PV releaser.
-          repository: plumbit/kubernetes-dynamic-reclaimable-pvc-controllers
+      # See https://github.com/peter-evans/dockerhub-description/issues/10
+      # - name: Checkout Code
+      #   uses: actions/checkout@v2
+      # - name: Docker Hub Description
+      #   uses: peter-evans/dockerhub-description@v2
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+      #     short-description: Dynamic PVC provisioner for pods and jobs requesting it via annotations. Automatic PV releaser.
+      #     repository: plumbit/kubernetes-dynamic-reclaimable-pvc-controllers
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/')
