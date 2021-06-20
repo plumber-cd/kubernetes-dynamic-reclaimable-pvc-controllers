@@ -101,16 +101,16 @@ func Main(
 	defer klog.Flush()
 
 	var kubeconfig string
+	var controllerId string
 	var namespace string
+	var leaseLockId string
 	var leaseLockName string
 	var leaseLockNamespace string
-	var id string
-	var controllerId string
 
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "absolute path to the kubeconfig file")
-	flag.StringVar(&namespace, "namespace", "", "limit to a specific namespace")
-	flag.StringVar(&id, "id", uuid.New().String(), "the holder identity name")
-	flag.StringVar(&controllerId, "controller-id", uuid.New().String(), "the holder identity name")
+	flag.StringVar(&controllerId, "controller-id", uuid.New().String(), "this controller identity name - use the same string for both provisioner and releaser")
+	flag.StringVar(&namespace, "namespace", "", "limit to a specific namespace - only for provisioner")
+	flag.StringVar(&leaseLockId, "lease-lock-id", uuid.New().String(), "optional, the lease lock holder identity name")
 	flag.StringVar(&leaseLockName, "lease-lock-name", "", "the lease lock resource name")
 	flag.StringVar(&leaseLockNamespace, "lease-lock-namespace", "", "the lease lock resource namespace")
 	flag.Parse()
@@ -146,7 +146,7 @@ func Main(
 	leader.Elect(&leader.Config{
 		LeaseLockName:      leaseLockName,
 		LeaseLockNamespace: leaseLockNamespace,
-		ID:                 id,
+		LeaseLockId:        leaseLockId,
 		Config:             config,
 		Client:             client,
 		Namespace:          namespace,

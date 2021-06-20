@@ -17,7 +17,7 @@ import (
 type Config struct {
 	LeaseLockName      string
 	LeaseLockNamespace string
-	ID                 string
+	LeaseLockId        string
 	StopCh             <-chan struct{}
 	Ctx                context.Context
 	Config             *rest.Config
@@ -51,7 +51,7 @@ func Elect(config *Config) {
 		},
 		Client: config.Client.CoordinationV1(),
 		LockConfig: resourcelock.ResourceLockConfig{
-			Identity: config.ID,
+			Identity: config.LeaseLockId,
 		},
 	}
 
@@ -73,13 +73,13 @@ func Elect(config *Config) {
 				)
 			},
 			OnStoppedLeading: func() {
-				klog.Infof("leader lost: %s", config.ID)
+				klog.Infof("leader lost: %s", config.LeaseLockId)
 				config.Stop(config.Config, config.Client)
 				os.Exit(0)
 			},
 			OnNewLeader: func(identity string) {
-				if identity == config.ID {
-					klog.Infof("I am the leader now: %s", config.ID)
+				if identity == config.LeaseLockId {
+					klog.Infof("I am the leader now: %s", config.LeaseLockId)
 					return
 				}
 				klog.V(2).Infof("new leader elected: %s", identity)

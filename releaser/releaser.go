@@ -60,11 +60,11 @@ func New(
 	klog.Info("Releaser starting...")
 
 	if namespace != "" {
-		klog.Warningf("Releaser can't run within a namespace as PVs are not namespaced resources - ignoring -namespace=%s", namespace)
+		klog.Warningf("Releaser can't run within a namespace as PVs are not namespaced resources - ignoring -namespace=%s and acting in the scope of the cluster", namespace)
 	}
 
 	if disableAutomaticAssociation {
-		klog.Warningf("Automatic PV association is disabled - make sure you label PV manually with '%s: %s'", LabelManagedBy, controllerId)
+		klog.Warningf("Automatic PV association is disabled - make sure you label PV manually with '%s: %s' label", LabelManagedBy, controllerId)
 	}
 
 	c := controller.New(ctx, kubeClientSet, "", AgentName, controllerId)
