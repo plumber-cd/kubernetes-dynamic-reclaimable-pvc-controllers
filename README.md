@@ -70,7 +70,7 @@ Provisioner will apply following modifications to the `dynamic-pvc-provisioner.k
 
 - Original `metadata.name` will be ignored and set to `spec.volumes[].persistentVolumeClaim.claimName` from matching `spec.volumes[].name` to `<volumeName>`. `metadata.name` not required to be set in `dynamic-pvc-provisioner.kubernetes.io/<volumeName>.pvc`.
 - `metadata.labels."dynamic-pvc-provisioner.kubernetes.io/managed-by"` will be set to refer to the current Controller ID.
-- `metadata.ownerReferences` will be set for the current pod as an owner - guaranteeing PVC to be deleted when the pod is deleted.
+- `metadata.ownerReferences` will be set referring to the current pod as an owner - guaranteeing PVC to be deleted when the pod is deleted.
 
 ## PV Releaser Controller
 
