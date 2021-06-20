@@ -143,17 +143,11 @@ func (r *Releaser) pvSyncHandler(_, name string) error {
 	manager, ok := pv.ObjectMeta.Labels[LabelManagedBy]
 	if ok {
 		if manager == r.ControllerId {
-			err = r.pvReleaseHandler(pv)
-			if err != nil {
-				return err
-			}
+			return r.pvReleaseHandler(pv)
 		}
 		klog.V(5).Infof("PV %s is managed by '%s', not me '%s', skip", pv.ObjectMeta.Name, manager, r.ControllerId)
 	} else if !r.DisableAutomaticAssociation {
-		err = r.pvAssociateHandler(pv)
-		if err != nil {
-			return err
-		}
+		return r.pvAssociateHandler(pv)
 	}
 
 	return nil
