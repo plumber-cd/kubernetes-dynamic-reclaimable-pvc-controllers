@@ -170,12 +170,16 @@ func (r *Releaser) pvAssociateHandler(pv *corev1.PersistentVolume) error {
 		return err
 	}
 
-	pvcOwner, ok := pvc.ObjectMeta.Labels[provisioner.LabelManagedBy]
-	if !ok {
+	pvcReleaserOwner, releaserOwnerOk := pvc.ObjectMeta.Labels[LabelManagedBy]
+	pvcProvisionerOwner, provisionerOwnerOk := pvc.ObjectMeta.Labels[provisioner.LabelManagedBy]
+	if !provisionerOwnerOk && !releaserOwnerOk {
 		klog.V(5).Infof("PVC has no manager, skip PV %s", pvc.ObjectMeta.Name, pv.ObjectMeta.Name)
 		return nil
-	} else if pvcOwner != r.ControllerId {
-		klog.V(5).Infof("PVC %s is managed by '%s', not me '%s', skip PV %s", pvc.ObjectMeta.Name, pvcOwner, r.ControllerId, pv.ObjectMeta.Name)
+	} else if releaserOwnerOk && pvcReleaserOwner != r.ControllerId {
+		klog.V(5).Infof("PVC %s is managed by releaser '%s', not me '%s', skip PV %s", pvc.ObjectMeta.Name, pvcReleaserOwner, r.ControllerId, pv.ObjectMeta.Name)
+		return nil
+	} else if provisionerOwnerOk && pvcProvisionerOwner != r.ControllerId {
+		klog.V(5).Infof("PVC %s is managed by provisioner '%s', not me '%s', skip PV %s", pvc.ObjectMeta.Name, pvcProvisionerOwner, r.ControllerId, pv.ObjectMeta.Name)
 		return nil
 	}
 

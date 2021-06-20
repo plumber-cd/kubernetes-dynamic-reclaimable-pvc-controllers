@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4] - 2021-06-20
+
+### Added
+
+- Releaser now checks for both `dynamic-pvc-provisioner.kubernetes.io/managed-by` and `reclaimable-pv-releaser.kubernetes.io/managed-by` labels on the PVC for association making it more independent for use cases where Provisioner is not used at all.
+
 ## [0.0.3] - 2021-06-20
 
 ### Fixed
