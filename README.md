@@ -166,8 +166,8 @@ Example:
 ```
 dynamic-pvc-provisioner \
   -controller-id reclaimable-pvc-test \
-  -namespace default \
-  -lease-lock-name reclaimable-pvc-provisioner-test
+  -lease-lock-name reclaimable-pvc-provisioner-test \
+  -lease-lock-namespace default
 ```
 
 ## PV Releaser Controller
