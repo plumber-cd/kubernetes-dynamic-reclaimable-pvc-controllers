@@ -108,4 +108,4 @@ podTemplate(yaml: """
 }
 ```
 
-Since provisioner was implemented as a regular controller and not admission controller and Pod resources are immutable (for the most part) - `spec.volumes[].persistentVolumeClaim.claimName` must be set before the Pod is created.
+Since provisioner was implemented as a regular controller and not admission controller and Pod resources are immutable (for the most part) - `spec.volumes[].persistentVolumeClaim.claimName` must be set before the Pod is created. We use a random `${UUID.randomUUID()}` for that.
