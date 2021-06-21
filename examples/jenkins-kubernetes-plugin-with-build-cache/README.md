@@ -4,7 +4,6 @@ First, create a StorageClass. You can use this [example](../basic/sc.yaml).
 Now, you can do something like this in your Jenkinsfile:
 
 ```groovy
-def pvcName = "some-randomly-generated-name"
 podTemplate(yaml: """
     apiVersion: v1
     kind: Pod
@@ -25,7 +24,7 @@ podTemplate(yaml: """
       volumes:
         - name: cache
           persistentVolumeClaim:
-            claimName: ${pvcName}
+            claimName: ${UUID.randomUUID()}
       securityContext:
         supplementalGroups: [1000]
         fsGroup: 1000
@@ -43,12 +42,10 @@ podTemplate(yaml: """
     node(POD_LABEL) {
         container('busybox') {
             sh 'ls -la /cache'
-            sh "touch /cache/${BUILD_NUMBER}.txt"
+            sh 'touch /cache/$BUILD_NUMBER.txt'
         }
     }
 }
 ```
 
 Since provisioner was implemented as a regular controller and not admission controller and Pod resources are immutable (for the most part) - `spec.volumes[].persistentVolumeClaim.claimName` must be set before the Pod is created.
-
-You can generate a random unique name in whichever way you want and use it for the pod template.
