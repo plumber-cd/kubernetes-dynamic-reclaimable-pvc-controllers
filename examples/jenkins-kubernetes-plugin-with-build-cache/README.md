@@ -1,7 +1,31 @@
 
-First, create a StorageClass. You can use this [example](../basic/sc.yaml).
+First, you will have to create a StorageClass:
 
-Now, you can do something like this in your Jenkinsfile:
+```yaml
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: jenkins-maven-cache
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: jenkins-golang-cache
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+```
+
+For maximizing cache hit ratio - you may want to have a separate SC per each cache type, i.e. Maven, Gradle, Go, etc.
+
+Now, you can request for a PVC as part of the pod (via annotations) in a `podTemplate` in your Jenkinsfile:
 
 ```groovy
 podTemplate(yaml: """
@@ -9,12 +33,23 @@ podTemplate(yaml: """
     kind: Pod
     metadata:
       annotations:
-        dynamic-pvc-provisioner.kubernetes.io/cache.enabled: "true"
-        dynamic-pvc-provisioner.kubernetes.io/cache.pvc: |
+        dynamic-pvc-provisioner.kubernetes.io/maven-cache.enabled: "true"
+        dynamic-pvc-provisioner.kubernetes.io/maven-cache.pvc: |
           apiVersion: v1
           kind: PersistentVolumeClaim
           spec:
-            storageClassName: reclaimable-storage-class
+            storageClassName: jenkins-maven-cache
+            resources:
+              requests:
+                storage: 1Gi
+            accessModes:
+              - ReadWriteOnce
+        dynamic-pvc-provisioner.kubernetes.io/golang-cache.enabled: "true"
+        dynamic-pvc-provisioner.kubernetes.io/golang-cache.pvc: |
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          spec:
+            storageClassName: jenkins-golang-cache
             resources:
               requests:
                 storage: 1Gi
@@ -22,30 +57,55 @@ podTemplate(yaml: """
               - ReadWriteOnce
     spec:
       volumes:
-        - name: cache
+        - name: maven-cache
+          persistentVolumeClaim:
+            claimName: ${UUID.randomUUID()}
+        - name: golang-cache
           persistentVolumeClaim:
             claimName: ${UUID.randomUUID()}
       securityContext:
         supplementalGroups: [1000]
         fsGroup: 1000
       containers:
-        - name: busybox
-          image: busybox
+        - name: maven
+          image: maven:3.8.1-jdk-8
           command:
             - sleep
           args:
             - 99d
           volumeMounts:
-            - name: cache
-              mountPath: /cache
+            - name: maven-cache
+              mountPath: /root/.m2/repository
+        - name: golang
+          image: golang:1.16.5
+          command:
+            - sleep
+          args:
+            - 99d
+          volumeMounts:
+            - name: golang-cache
+              mountPath: /go/pkg/mod
 """) {
     node(POD_LABEL) {
-        container('busybox') {
-            sh 'ls -la /cache'
-            sh 'touch /cache/$BUILD_NUMBER.txt'
+      stage('Get a Maven project') {
+        git 'https://github.com/jenkinsci/kubernetes-plugin.git'
+        container('maven') {
+          stage('Build a Maven project') {
+            sh 'mvn -B -ntp clean install'
+          }
         }
+      }
+
+      stage('Get a Golang project') {
+        git url: 'https://github.com/plumber-cd/kubernetes-dynamic-reclaimable-pvc-controllers.git', branch: 'main'
+        container('golang') {
+          stage('Build a Go project') {
+            sh 'mkdir bin && go build -o ./bin ./...'
+          }
+        }
+      }
     }
 }
 ```
 
-Since provisioner was implemented as a regular controller and not admission controller and Pod resources are immutable (for the most part) - `spec.volumes[].persistentVolumeClaim.claimName` must be set before the Pod is created.
+Since provisioner was implemented as a regular controller and not admission controller and Pod resources are immutable (for the most part) - `spec.volumes[].persistentVolumeClaim.claimName` must be set before the Pod is created. We use a `${UUID.randomUUID()}` for that.
