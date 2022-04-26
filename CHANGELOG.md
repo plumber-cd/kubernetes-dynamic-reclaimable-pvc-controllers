@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha1] - 2022-04-26
+
+### Changed
+
+- Updated with Go 1.17 and K8s dependencies 1.23.6.
+
 ## [0.0.4] - 2021-06-20
 
 ### Added
