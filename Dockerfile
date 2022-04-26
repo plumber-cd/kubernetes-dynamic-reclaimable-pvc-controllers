@@ -1,4 +1,4 @@
-FROM golang:1.16 AS build
+FROM golang:1.17 AS build
 
 ARG RELEASE_STRING=dev
 ENV IMPORT_PATH="github.com/plumber-cd/kubernetes-dynamic-reclaimable-pvc-controllers"
