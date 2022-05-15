@@ -1,0 +1,4 @@
+image:
+  repository: kubernetes-dynamic-reclaimable-pvc-controllers
+  tag: dev
+  pullPolicy: Never

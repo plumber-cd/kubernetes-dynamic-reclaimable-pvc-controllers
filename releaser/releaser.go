@@ -186,6 +186,9 @@ func (r *Releaser) pvAssociateHandler(pv *corev1.PersistentVolume) error {
 	klog.V(4).Infof("PV %s is matched for association based on PVC %s", pv.ObjectMeta.Name, pvc.ObjectMeta.Name)
 
 	pvCopy := pv.DeepCopy()
+	if pvCopy.ObjectMeta.Labels == nil {
+		pvCopy.ObjectMeta.Labels = make(map[string]string)
+	}
 	pvCopy.ObjectMeta.Labels[LabelManagedBy] = r.ControllerId
 	_, err = r.KubeClientSet.CoreV1().PersistentVolumes().Update(r.Ctx, pvCopy, metav1.UpdateOptions{})
 	if err != nil {
