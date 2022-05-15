@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2021-06-20
+
+### Changed
+
+- Updated with Go 1.18 and K8s dependencies 1.24.0.
+- Fixed NP panic in releaser when labels were not present on the PV.
+- Bumping to `v0.1` - I've been using it for a long while now in prod, and it seems to be working fine.
+
 ## [0.1.0-alpha1] - 2022-04-26
 
 ### Changed

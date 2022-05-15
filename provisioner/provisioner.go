@@ -264,7 +264,7 @@ func (p *Provisioner) podSyncHandler(namespace, name string) error {
 			*metav1.NewControllerRef(pod, corev1.SchemeGroupVersion.WithKind("Pod")),
 		}
 		if pvc.ObjectMeta.Labels == nil {
-			pvc.ObjectMeta.Labels = map[string]string{}
+			pvc.ObjectMeta.Labels = make(map[string]string)
 		}
 		pvc.ObjectMeta.Labels[fmt.Sprintf("%s/%s", LabelBaseName, LabelManagedByKey)] = p.ControllerId
 		_, err = p.KubeClientSet.CoreV1().PersistentVolumeClaims(pod.ObjectMeta.Namespace).
