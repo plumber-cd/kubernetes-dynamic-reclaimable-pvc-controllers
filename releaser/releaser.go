@@ -85,7 +85,7 @@ func New(
 			r.Enqueue(r.PVQueue, obj)
 		},
 		UpdateFunc: func(old, new interface{}) {
-			r.Enqueue(r.PVQueue, new)
+			r.Requeue(r.PVQueue, old, new)
 		},
 	})
 

@@ -24,9 +24,10 @@ import (
 	// 1 - debug
 	klog "k8s.io/klog/v2"
 
+	"time"
+
 	"github.com/plumber-cd/kubernetes-dynamic-reclaimable-pvc-controllers/leader"
 	"github.com/plumber-cd/kubernetes-dynamic-reclaimable-pvc-controllers/signals"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -144,10 +145,12 @@ func Main(
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	stopElectCh := make(chan struct{})
 	stopCh := signals.SetupSignalHandler()
 	go func() {
 		<-stopCh
 		klog.Info("Received termination, signaling shutdown")
+		close(stopElectCh)
 		cancel()
 	}()
 
@@ -160,7 +163,7 @@ func Main(
 		Namespace:          namespace,
 		ControllerId:       controllerId,
 		Ctx:                ctx,
-		StopCh:             stopCh,
+		StopCh:             stopElectCh,
 		Run:                run,
 		Stop:               stop,
 		Cancel:             cancel,
@@ -268,7 +271,19 @@ func (c *BasicController) Enqueue(queue workqueue.RateLimitingInterface, obj int
 		utilruntime.HandleError(err)
 		return
 	}
-	queue.Add(key)
+	queue.AddRateLimited(key)
+}
+
+func (c *BasicController) Requeue(queue workqueue.RateLimitingInterface, old interface{}, new interface{}) {
+	var key string
+	var err error
+	if key, err = cache.MetaNamespaceKeyFunc(old); err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+	queue.Forget(key)
+	queue.Done(key)
+	c.Enqueue(queue, new)
 }
 
 func (c *BasicController) RunWorker(
@@ -295,17 +310,23 @@ func (c *BasicController) ProcessNextWorkItem(
 	}
 
 	err := func(obj interface{}) error {
-		defer queue.Done(obj)
+		finalFunc := func() {
+			queue.Done(obj)
+		}
+		defer func() {
+			finalFunc()
+		}()
+
 		var key string
 		var ok bool
 		if key, ok = obj.(string); !ok {
-			queue.Forget(obj)
+			queue.Forget(key)
 			utilruntime.HandleError(fmt.Errorf("expected string in the queue but got %v", obj))
 			return nil
 		}
 		namespace, name, err := cache.SplitMetaNamespaceKey(key)
 		if err != nil {
-			queue.Forget(obj)
+			queue.Forget(key)
 			utilruntime.HandleError(fmt.Errorf("invalid resource %s key: %s", name, key))
 			return nil
 		}
@@ -314,10 +335,13 @@ func (c *BasicController) ProcessNextWorkItem(
 				klog.V(6).Info(err)
 				return nil
 			}
-			queue.AddRateLimited(key)
+			queue.Forget(key)
+			finalFunc = func() {
+				queue.AddRateLimited(key) // make sure it is requeuing after the previous item was Done
+			}
 			return fmt.Errorf("error syncing %s '%s': %s, requeuing", name, key, err.Error())
 		}
-		queue.Forget(obj)
+		queue.Forget(key)
 		klog.V(5).Infof("Successfully synced '%s'", key)
 		return nil
 	}(obj)

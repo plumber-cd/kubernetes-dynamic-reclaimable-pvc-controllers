@@ -82,7 +82,7 @@ func New(
 			p.Enqueue(p.PodsQueue, obj)
 		},
 		UpdateFunc: func(old, new interface{}) {
-			p.Enqueue(p.PodsQueue, new)
+			p.Requeue(p.PodsQueue, old, new)
 		},
 	})
 
