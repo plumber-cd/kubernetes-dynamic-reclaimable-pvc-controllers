@@ -190,6 +190,13 @@ func (r *Releaser) Stop() {
 	klog.Info("Releaser stopped")
 }
 
+func (r *Releaser) isManagedSC(name string) bool {
+	r.managedSCMutex.Lock()
+	defer r.managedSCMutex.Unlock()
+	_, exists := r.managedSCSet[name]
+	return exists
+}
+
 func (r *Releaser) addManagedSC(sc *v1.StorageClass) {
 	r.managedSCMutex.Lock()
 	defer r.managedSCMutex.Unlock()
@@ -263,8 +270,7 @@ func (r *Releaser) pvSyncHandler(_, name string) error {
 		return err
 	}
 
-	_, ok := r.managedSCSet[pv.Spec.StorageClassName]
-	if ok {
+	if r.isManagedSC(pv.Spec.StorageClassName) {
 		return r.pvReleaseHandler(pv)
 	} else {
 		klog.V(5).Infof("SC %q for PV %q is not associated with this controller ID %q, skip", pv.Spec.StorageClassName, pv.ObjectMeta.Name, r.ControllerId)
