@@ -30,6 +30,7 @@ import (
 	"github.com/plumber-cd/kubernetes-dynamic-reclaimable-pvc-controllers/signals"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -271,29 +272,48 @@ func (c *BasicController) Enqueue(queue workqueue.RateLimitingInterface, obj int
 		utilruntime.HandleError(err)
 		return
 	}
-	queue.AddRateLimited(key)
+	klog.V(6).Infof("Queuing object %T with key %s", obj, key)
+	// No rate limiting is applied for the first appearance in the queue
+	queue.Add(key)
 }
 
 func (c *BasicController) Requeue(queue workqueue.RateLimitingInterface, old interface{}, new interface{}) {
+	oldMeta, err := meta.Accessor(old)
+	if err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+	newMeta, err := meta.Accessor(new)
+	if err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+	if oldMeta.GetResourceVersion() == newMeta.GetResourceVersion() {
+		klog.V(6).Infof("Skip re-queuing object %s with the same version %s", newMeta.GetName(), newMeta.GetResourceVersion())
+		// No need to re-queue resource that didn't change
+		return
+	}
 	var key string
-	var err error
 	if key, err = cache.MetaNamespaceKeyFunc(old); err != nil {
 		utilruntime.HandleError(err)
 		return
 	}
+	klog.V(6).Infof("Re-queuing object %T with key %s", new, key)
 	queue.Forget(key)
 	queue.Done(key)
 	c.Enqueue(queue, new)
 }
 
-func (c *BasicController) Forget(queue workqueue.RateLimitingInterface, obj interface{}) {
+func (c *BasicController) Dequeue(queue workqueue.RateLimitingInterface, obj interface{}) {
 	var key string
 	var err error
 	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
 		utilruntime.HandleError(err)
 		return
 	}
+	klog.V(6).Infof("De-queuing object %T with key %s", obj, key)
 	queue.Forget(key)
+	queue.Done(key)
 }
 
 func (c *BasicController) RunWorker(
@@ -320,12 +340,7 @@ func (c *BasicController) ProcessNextWorkItem(
 	}
 
 	err := func(obj interface{}) error {
-		finalFunc := func() {
-			queue.Done(obj)
-		}
-		defer func() {
-			finalFunc()
-		}()
+		defer queue.Done(obj)
 
 		var key string
 		var ok bool
@@ -345,10 +360,8 @@ func (c *BasicController) ProcessNextWorkItem(
 				klog.V(6).Info(err)
 				return nil
 			}
-			queue.Forget(key)
-			finalFunc = func() {
-				queue.AddRateLimited(key) // make sure it is requeuing after the previous item was Done
-			}
+			// make sure it is requeuing with a rate limit after the previous item was Done with failure
+			queue.AddRateLimited(key)
 			return fmt.Errorf("error syncing %s '%s': %s, requeuing", name, key, err.Error())
 		}
 		queue.Forget(key)
@@ -358,7 +371,6 @@ func (c *BasicController) ProcessNextWorkItem(
 
 	if err != nil {
 		utilruntime.HandleError(err)
-		return true
 	}
 
 	return true

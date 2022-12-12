@@ -25,8 +25,7 @@ Dynamic PVC provisioner for pods requesting it via annotations. Automatic PV rel
   - Dynamically create PVC for Pods requesting it via the annotations.
   - Pod is automatically set as `ownerReferences` to the PVC - guaranteeing its deletions upon Pod deletion.
 - PV Releaser
-  - Keeps track of Storage Classes marked by annotation pointing to the same `--controller-id`.
-  - Deletes `claimRef` from PVs associated with Releaser (via Storage Class annotation) to move their status from `Released` to `Available` **without deleting any data**.
+  - Deletes `claimRef` from PVs associated with Releaser (via Storage Class annotation that is pointing to the same `--controller-id`) to move their status from `Released` to `Available` **without deleting any data**.
 - Provisioner and Releaser are two separate controllers under one roof, and they can be deployed separately.
   - You can use Provisioner alone for something like Jenkins Kubernetes plugin that doesn't allow PVC creation on its own and automate PVC provisioning from the pod requests. Provisioner on its own will not make PVs automatically reclaimable.
   - You can use Releaser alone. That will enable PVCs to automatically reclaim PVs with whatever data left in it from previous consumer.
@@ -175,7 +174,7 @@ For Releaser to be able to make PVs claimed by Provisioner `Available` after PVC
 
 ### Associate
 
-Releaser listens for Storage Classes and remembers these that are annotated with `metadata.annotations."reclaimable-pv-releaser.kubernetes.io/controller-id"` pointing to this `-controller-id`. Any PV that is using Storage Class with that annotation is considered associated.
+Releaser considers PVs associated when their Storage Class is annotated with `metadata.annotations."reclaimable-pv-releaser.kubernetes.io/controller-id"` pointing to this `-controller-id`.
 
 ### Release
 

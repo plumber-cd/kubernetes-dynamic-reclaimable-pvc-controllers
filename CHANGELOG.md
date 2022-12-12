@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2022-12-12
+
+### Fixed
+
+- Regression in `v0.2.0` - it was correct to use non-rate limited functions in certain scenarios, rate limit should only be used for retry after errors
+- Retry in case of errors was broken - it was using `Forget` instead of `Done` which was just resetting the rate limit counter but not actually removing previous item from the queue
+- No longer watch for SC - lister is already using efficient caching API, so it is cheap to get a SC by name from the Index during PV reconciliation; that removes some race condition when PV was reconciled and forgotten about before Releaser learned that SC is annotated
+- Do nor re-queue an object that has the same version
+- There was race conditions when `claimRef` was already removed from the PV but Kubernetes didn't yet marked it as `Available`, re-queuing such a PV was resulting in duplicative `Released` events - now Released verifies that the `claimRef` is not already `nil` before trying to release the volume
+
 ## [0.2.1] - 2022-12-11
 
 ### Fixed
