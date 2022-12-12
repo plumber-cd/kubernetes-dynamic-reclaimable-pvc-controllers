@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2022-12-11
+
+### Fixed
+
+- Regression in `v0.2.0` caused Releaser to panic on concurrent managed SC read
+
 ## [0.2.0] - 2022-12-11
 
 ### BREAKING CHANGES
