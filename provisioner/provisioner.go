@@ -84,6 +84,9 @@ func New(
 		UpdateFunc: func(old, new interface{}) {
 			p.Requeue(p.PodsQueue, old, new)
 		},
+		DeleteFunc: func(obj interface{}) {
+			p.Dequeue(p.PodsQueue, obj)
+		},
 	})
 
 	return p

@@ -9,10 +9,8 @@ import (
 
 	controller "github.com/plumber-cd/kubernetes-dynamic-reclaimable-pvc-controllers"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -30,13 +28,6 @@ const (
 	AnnotationControllerIdKey = "controller-id"
 	AnnotationControllerId    = AnnotationBaseName + "/" + AnnotationControllerIdKey
 
-	SCAdded          = "Added"
-	MessageSCAdded   = "SC tracking added"
-	SCRemoved        = "Removed"
-	MessageSCRemoved = "SC tracking removed"
-	SCLost           = "Lost"
-	MessageSCLost    = "SC tracking removed (lost)"
-
 	Released          = "Released"
 	MessagePVReleased = "PV released successfully"
 
@@ -48,8 +39,6 @@ type Releaser struct {
 	controller.BasicController
 
 	SCLister storagelisters.StorageClassLister
-	SCSynced cache.InformerSynced
-	SCQueue  workqueue.RateLimitingInterface
 
 	PVLister corelisters.PersistentVolumeLister
 	PVSynced cache.InformerSynced
@@ -80,8 +69,6 @@ func New(
 		BasicController: *c,
 
 		SCLister: scInformer.Lister(),
-		SCSynced: scInformer.Informer().HasSynced,
-		SCQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "StorageClasses"),
 
 		PVLister: pvInformer.Lister(),
 		PVSynced: pvInformer.Informer().HasSynced,
@@ -93,29 +80,15 @@ func New(
 
 	klog.V(2).Info("Setting up event handlers")
 
-	scInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			r.Enqueue(r.SCQueue, obj)
-		},
-		UpdateFunc: func(old, new interface{}) {
-			r.Requeue(r.SCQueue, old, new)
-		},
-		DeleteFunc: func(obj interface{}) {
-			if sc, ok := obj.(*v1.StorageClass); ok {
-				r.Forget(r.SCQueue, obj)
-				r.removeManagedSC(sc)
-				return
-			}
-			klog.Warningf("Received DeleteFunc on %T - skip", obj)
-		},
-	})
-
 	pvInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			r.Enqueue(r.PVQueue, obj)
 		},
 		UpdateFunc: func(old, new interface{}) {
 			r.Requeue(r.PVQueue, old, new)
+		},
+		DeleteFunc: func(obj interface{}) {
+			r.Dequeue(r.PVQueue, obj)
 		},
 	})
 
@@ -129,20 +102,11 @@ func (r *Releaser) Run(threadiness int, stopCh <-chan struct{}) error {
 		func(threadiness int, stopCh <-chan struct{}) error {
 			klog.V(2).Info("Waiting for informer caches to sync")
 
-			if ok := cache.WaitForCacheSync(stopCh, r.SCSynced); !ok {
-				return fmt.Errorf("failed to wait for SC caches to sync")
-			}
-
 			if ok := cache.WaitForCacheSync(stopCh, r.PVSynced); !ok {
 				return fmt.Errorf("failed to wait for PV caches to sync")
 			}
 
 			klog.V(2).Info("Starting workers")
-			go wait.Until(
-				r.RunWorker("sc", r.SCQueue, r.scSyncHandler),
-				time.Second,
-				stopCh,
-			)
 			for i := 0; i < threadiness; i++ {
 				go wait.Until(
 					r.RunWorker("pv", r.PVQueue, r.pvSyncHandler),
@@ -151,32 +115,9 @@ func (r *Releaser) Run(threadiness int, stopCh <-chan struct{}) error {
 				)
 			}
 
-			preExistedSC, err := r.SCLister.List(labels.Everything())
-			if err != nil {
-				// If we can't list pre-existent objects - that would be broken state
-				// It is better to fail fast, this is not expected condition
-				panic(err)
-			}
-			for _, sc := range preExistedSC {
-				r.Enqueue(r.SCQueue, sc)
-			}
-
-			preExistedPV, err := r.PVLister.List(labels.Everything())
-			if err != nil {
-				// If we can't list pre-existent objects - that would be broken state
-				// It is better to fail fast, this is not expected condition
-				panic(err)
-			}
-			for _, pv := range preExistedPV {
-				r.Enqueue(r.PVQueue, pv)
-			}
-
 			return nil
 		},
 		func() {
-			if r.SCQueue != nil {
-				r.SCQueue.ShutDown()
-			}
 			if r.PVQueue != nil {
 				r.PVQueue.ShutDown()
 			}
@@ -188,73 +129,6 @@ func (r *Releaser) Stop() {
 	r.BasicController.Stop()
 	// TODO: Any cleanup logic signaling to not to perform any write operations?
 	klog.Info("Releaser stopped")
-}
-
-func (r *Releaser) isManagedSC(name string) bool {
-	r.managedSCMutex.Lock()
-	defer r.managedSCMutex.Unlock()
-	_, exists := r.managedSCSet[name]
-	return exists
-}
-
-func (r *Releaser) addManagedSC(sc *v1.StorageClass) {
-	r.managedSCMutex.Lock()
-	defer r.managedSCMutex.Unlock()
-	if _, exists := r.managedSCSet[sc.ObjectMeta.Name]; exists {
-		return
-	}
-	r.managedSCSet[sc.ObjectMeta.Name] = struct{}{}
-	r.Recorder.Event(sc, corev1.EventTypeNormal, SCAdded, MessageSCAdded)
-}
-
-func (r *Releaser) removeManagedSC(sc *v1.StorageClass) {
-	r.managedSCMutex.Lock()
-	defer r.managedSCMutex.Unlock()
-	if _, exists := r.managedSCSet[sc.ObjectMeta.Name]; !exists {
-		return
-	}
-	delete(r.managedSCSet, sc.ObjectMeta.Name)
-	r.Recorder.Event(sc, corev1.EventTypeNormal, SCRemoved, MessageSCRemoved)
-}
-
-func (r *Releaser) removeMissingSC(name string) {
-	r.managedSCMutex.Lock()
-	defer r.managedSCMutex.Unlock()
-	if _, exists := r.managedSCSet[name]; !exists {
-		return
-	}
-	delete(r.managedSCSet, name)
-	r.Recorder.Event(&corev1.ObjectReference{
-		APIVersion: "storage.k8s.io/v1",
-		Kind:       "StorageClass",
-		Name:       name,
-	}, corev1.EventTypeNormal, SCLost, MessageSCLost)
-}
-
-func (r *Releaser) scSyncHandler(_, name string) error {
-	sc, err := r.SCLister.Get(name)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			utilruntime.HandleError(
-				fmt.Errorf("sc '%s' in work queue no longer exists", name),
-			)
-			r.removeMissingSC(name)
-			return nil
-		}
-
-		return err
-	}
-
-	manager, ok := sc.ObjectMeta.Annotations[AnnotationControllerId]
-	if ok {
-		if manager == r.ControllerId {
-			r.addManagedSC(sc)
-			return nil
-		}
-		klog.V(5).Infof("SC %s is not annotated with '%s=%s', skip", sc.ObjectMeta.Name, AnnotationControllerId, r.ControllerId)
-	}
-
-	return nil
 }
 
 func (r *Releaser) pvSyncHandler(_, name string) error {
@@ -270,7 +144,20 @@ func (r *Releaser) pvSyncHandler(_, name string) error {
 		return err
 	}
 
-	if r.isManagedSC(pv.Spec.StorageClassName) {
+	sc, err := r.SCLister.Get(pv.Spec.StorageClassName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			utilruntime.HandleError(
+				fmt.Errorf("sc '%s' for pv '%s' in work queue didn't exist", pv.Spec.StorageClassName, name),
+			)
+			return nil
+		}
+
+		return err
+	}
+
+	manager, ok := sc.ObjectMeta.Annotations[AnnotationControllerId]
+	if ok && manager == r.ControllerId {
 		return r.pvReleaseHandler(pv)
 	} else {
 		klog.V(5).Infof("SC %q for PV %q is not associated with this controller ID %q, skip", pv.Spec.StorageClassName, pv.ObjectMeta.Name, r.ControllerId)
@@ -280,8 +167,16 @@ func (r *Releaser) pvSyncHandler(_, name string) error {
 }
 
 func (r *Releaser) pvReleaseHandler(pv *corev1.PersistentVolume) error {
+	if pv.Status.Phase == corev1.VolumeAvailable {
+		klog.V(6).Infof("PV %s is already '%s' - moving on", pv.ObjectMeta.Name, pv.Status.Phase)
+		return nil
+	}
 	if pv.Status.Phase != corev1.VolumeReleased {
 		klog.V(4).Infof("PV %s is '%s', can't make it '%s'", pv.ObjectMeta.Name, pv.Status.Phase, corev1.VolumeAvailable)
+		return nil
+	}
+	if pv.Spec.ClaimRef == nil {
+		klog.V(4).Infof("PV %s already had nil as claimRef - back off", pv.ObjectMeta.Name)
 		return nil
 	}
 
