@@ -25,16 +25,15 @@ Dynamic PVC provisioner for pods requesting it via annotations. Automatic PV rel
   - Dynamically create PVC for Pods requesting it via the annotations.
   - Pod is automatically set as `ownerReferences` to the PVC - guaranteeing its deletions upon Pod deletion.
 - PV Releaser
-  - Automatically associates Releaser with PVs claimed by PVCs that were created by Provisioner with the same `--controller-id`.
-  - Deletes `claimRef` from PVs associated with Releaser to move their status from `Released` to `Available` **without deleting any data**.
+  - Keeps track of Storage Classes marked by annotation pointing to the same `--controller-id`.
+  - Deletes `claimRef` from PVs associated with Releaser (via Storage Class annotation) to move their status from `Released` to `Available` **without deleting any data**.
 - Provisioner and Releaser are two separate controllers under one roof, and they can be deployed separately.
   - You can use Provisioner alone for something like Jenkins Kubernetes plugin that doesn't allow PVC creation on its own and automate PVC provisioning from the pod requests. Provisioner on its own will not make PVs automatically reclaimable.
-  - You can use Releaser alone - provided you associate either your PVCs or PVs with it on your own. That will set PVCs able to automatically reclaim associated PVs with whatever data left in it from previous consumer.
-- To make Releaser and Deployer work together - they need to have the same `--controller-id`.
+  - You can use Releaser alone. That will enable PVCs to automatically reclaim PVs with whatever data left in it from previous consumer.
 
 ## Disclaimers
 
-**Provisioner Controller ignores RBAC. If the user creating the Pod didn't had permissions to create PVC - it will still be created as long as Provisioner has access to do it.**
+**Provisioner Controller ignores RBAC. If the user creating the Pod didn't had permissions to create PVC - it will still be created as long as Provisioner has access to do it. Please, use admission controllers.**
 
 **Releaser Controller is by design automatically makes PVs with `reclaimPolicy: Retain` available to be reclaimed by other consumers without cleaning up any data. Use it with caution - this behavior might not be desirable in most cases. Any data left on the PV after the previous consumer will be available to all the following consumers. You may want to use StatefulSets instead. This controller might be ideal for something like build cache - insensitive data by design required to be shared among different consumers. There is many use cases for this, one of them is documented in [examples/jenkins-kubernetes-plugin-with-build-cache](examples/jenkins-kubernetes-plugin-with-build-cache).**
 
@@ -46,7 +45,7 @@ The problem statement for creating this was - I need a pool of CI/CD build cache
 
 ### Why `reclaimPolicy: Retain` is not enough?
 
-When PVC that were using PV with `reclaimPolicy: Retain` is deleted - Kubernetes marks this PV `Released`. Fortunately, this does not let any other PVC to start using it. I say fortunately because imagine if it did - meaning all the data on the volume could be accessed by a new consumer. This is not what `reclaimPolicy: Retain` is designed for - it only allows cluster administrators to recover the data after accidental PVC deletion. Even now deprecated `reclaimPolicy: Recycle` was performing a cleanup before making PV `Available` again. Unfortunately, this just doesn't work for something like a CI/CD build cache, where you intentionally want to reuse data from the previous consumer.
+When PVC that were using PV with `reclaimPolicy: Retain` is deleted - Kubernetes marks this PV `Released`. Fortunately, this will not let any other PVC to use it. I say fortunately because imagine if it did - meaning all the data on the volume could be accessed by a new consumer. This is not what `reclaimPolicy: Retain` is designed for - it only allows cluster administrators to recover the data after accidental PVC deletion. Even now deprecated `reclaimPolicy: Recycle` was performing a cleanup before making PV `Available` again. Unfortunately, this just doesn't work for something like a CI/CD build cache, where you intentionally want to reuse data from the previous consumer.
 
 ### Why not a static PVC?
 
@@ -54,7 +53,7 @@ One way to approach this problem statement would be just to create a static PVC 
 
 ### Why not StatefulSets?
 
-StatefulSets are idiomatic way to reuse PVs and preserve data in Kubernetes. It works great for most of the stateful workload types - unfortunately it doesn't suit very well for CI/CD. Build pods are most likely dynamically generated in CI/CD, each pod is crafted for a specific project, with containers to bring in tools that are needed for this specific project. A simple example - one project might need a MySQL container for its unit tests while another might need a PostgreSQL container - but both are Maven projects so both need a Maven cache. You can't do this with StatefulSets where all the pods are exactly the same.
+StatefulSets are idiomatic way to reuse PVs and preserve data in Kubernetes. It works great for most of the stateful workload types - unfortunately it doesn't fit very well for CI/CD. Build pods are most likely dynamically generated in CI/CD, each pod is crafted for a specific project, with containers to bring in tools that are needed for this specific project. A simple example - one project might need a MySQL container for its unit tests while another might need a PostgreSQL container - but both are Maven projects so both need a Maven cache. You can't do this with StatefulSets where all the pods are exactly the same.
 
 ### But why dynamic PVC provisioning from the pod annotations?
 
@@ -172,30 +171,21 @@ dynamic-pvc-provisioner \
 
 ## PV Releaser Controller
 
-For Releaser to be able to make PVs claimed by Provisioner `Available` after PVC is gone - Releaser and Provisioner must share the same Controller ID.
+For Releaser to be able to make PVs claimed by Provisioner `Available` after PVC is gone - Provisioner must be using Storage Class associated with a Releaser.
 
 ### Associate
 
-Once `Released` - PVs doesn't have any indication that they were once associated with a PVC that had association with this Controller ID. To establish this relation - we must catch it while PVC still exists and mark it with our label. If Releaser was down the whole time PVC existed - PV could never be associated making it now orphaned and it will stay as `Released` - Releaser can't know it have to make it `Available`.
-
-Releaser listens for PV creations/updates.
-The following conditions must be met for a PV to be associated with a Releaser:
-
-- PV doesn't already have `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` association.
-- `spec.claimRef` must refer to a PVC that either has `metadata.labels."dynamic-pvc-provisioner.kubernetes.io/managed-by"` or `reclaimable-pv-releaser.kubernetes.io/managed-by` set to this Controller ID. If both labels are set - both should point to this Controller ID.
-- `--disable-automatic-association` must be `false`.
-
-To establish association Releaser will set itself to `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` on this PV.
+Releaser listens for Storage Classes and remembers these that are annotated with `metadata.annotations."reclaimable-pv-releaser.kubernetes.io/controller-id"` pointing to this `-controller-id`. Any PV that is using Storage Class with that annotation is considered associated.
 
 ### Release
 
 Releaser watches for PVs to be released.
 The following conditions must be met for a PV to be made `Available`:
 
-- `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` must be set to this Controller ID.
+- `metadata.annotations."reclaimable-pv-releaser.kubernetes.io/controller-id"` on Storage Class must be set to this Controller ID.
 - `status.phase` must be `Released`.
 
-If these conditions are met, Releaser will set `spec.claimRef` to `null`. That will make Kubernetes eventually to mark `status.phase` of this PV as `Available` - making other PVCs able to reclaim this PV. Releaser will also delete `metadata.labels."reclaimable-pv-releaser.kubernetes.io/managed-by"` to remove association - the next PVC might be managed by something else.
+If these conditions are met, Releaser will set `spec.claimRef` to `null`. That will make Kubernetes eventually to mark `status.phase` of this PV as `Available` - making other PVCs able to reclaim this PV.
 
 ### Usage
 
@@ -207,8 +197,6 @@ Usage of reclaimable-pv-releaser:
     	log to standard error as well as files
   -controller-id string
     	this controller identity name - use the same string for both provisioner and releaser
-  -disable-automatic-association
-    	disable automatic PV association
   -kubeconfig string
     	optional, absolute path to the kubeconfig file
   -lease-lock-id string

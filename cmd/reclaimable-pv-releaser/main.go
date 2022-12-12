@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"flag"
+
 	controller "github.com/plumber-cd/kubernetes-dynamic-reclaimable-pvc-controllers"
 	"github.com/plumber-cd/kubernetes-dynamic-reclaimable-pvc-controllers/releaser"
 	clientset "k8s.io/client-go/kubernetes"
@@ -11,9 +11,6 @@ import (
 )
 
 func main() {
-	var disableAutomaticAssociation bool
-	flag.BoolVar(&disableAutomaticAssociation, "disable-automatic-association", false, "disable automatic PV association")
-
 	var c controller.Controller
 	run := func(
 		ctx context.Context,
@@ -23,7 +20,7 @@ func main() {
 		namespace string,
 		controllerId string,
 	) {
-		c = releaser.New(ctx, client, namespace, controllerId, disableAutomaticAssociation)
+		c = releaser.New(ctx, client, namespace, controllerId)
 		if err := c.Run(2, stopCh); err != nil {
 			klog.Fatalf("Error running releaser: %s", err.Error())
 		}

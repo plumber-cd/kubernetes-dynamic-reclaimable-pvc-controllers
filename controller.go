@@ -286,6 +286,16 @@ func (c *BasicController) Requeue(queue workqueue.RateLimitingInterface, old int
 	c.Enqueue(queue, new)
 }
 
+func (c *BasicController) Forget(queue workqueue.RateLimitingInterface, obj interface{}) {
+	var key string
+	var err error
+	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+	queue.Forget(key)
+}
+
 func (c *BasicController) RunWorker(
 	name string,
 	queue workqueue.RateLimitingInterface,
