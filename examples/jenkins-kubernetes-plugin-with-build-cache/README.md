@@ -6,6 +6,8 @@ kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
   name: jenkins-maven-cache
+  annotations:
+    reclaimable-pv-releaser.kubernetes.io/controller-id: dynamic-reclaimable-pvc-controllers
 provisioner: kubernetes.io/aws-ebs
 parameters:
   type: gp2
@@ -16,6 +18,8 @@ kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
   name: jenkins-golang-cache
+  annotations:
+    reclaimable-pv-releaser.kubernetes.io/controller-id: dynamic-reclaimable-pvc-controllers
 provisioner: kubernetes.io/aws-ebs
 parameters:
   type: gp2
