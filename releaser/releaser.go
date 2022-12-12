@@ -147,9 +147,7 @@ func (r *Releaser) pvSyncHandler(_, name string) error {
 	sc, err := r.SCLister.Get(pv.Spec.StorageClassName)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			utilruntime.HandleError(
-				fmt.Errorf("sc '%s' for pv '%s' in work queue didn't exist", pv.Spec.StorageClassName, name),
-			)
+			klog.V(5).Infof("sc '%s' for pv '%s' in work queue didn't exist", pv.Spec.StorageClassName, name)
 			return nil
 		}
 

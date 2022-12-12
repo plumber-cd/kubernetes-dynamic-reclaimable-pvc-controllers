@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2022-12-12
+
+### Fixed
+
+- Hide noisy error message for PVs pointing to non-existent SC behind `-v=5` or more
+
 ## [0.2.2] - 2022-12-12
 
 ### Fixed
