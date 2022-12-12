@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - We was not using graceful rate-limit aware code in some places
 - Fix leader elect code, previously it would not release the lease after a graceful stop
 - Improve basic example with more validation steps
+- Start publishing to GitHub Docker Registry `ghcr.io`
 
 ## [0.1.0] - 2022-05-14
 

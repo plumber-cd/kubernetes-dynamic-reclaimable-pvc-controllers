@@ -6,6 +6,10 @@ on:
     tags:
       - "v*"
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   build:
     name: Docker
@@ -22,13 +26,36 @@ jobs:
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
+      - name: Log in to GitHub registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      - name: Build and Push
+        id: docker_build
+        uses: docker/build-push-action@v3
+        with:
+          build-args: |
+            RELEASE_STRING=${{ env.RELEASE_STRING }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
+      # For backward compatibility - push to Docker Hub
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build and Push
-        id: docker_build
+      - name: Build and Push to Docker Hub
+        id: docker_hub_build
         uses: docker/build-push-action@v3
         with:
           build-args: |
@@ -37,18 +64,8 @@ jobs:
           tags: |
             plumbit/kubernetes-dynamic-reclaimable-pvc-controllers:${{ env.RELEASE_VERSION }}
             plumbit/kubernetes-dynamic-reclaimable-pvc-controllers:latest
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
-      # See https://github.com/peter-evans/dockerhub-description/issues/10
-      # - name: Checkout Code
-      #   uses: actions/checkout@v2
-      # - name: Docker Hub Description
-      #   uses: peter-evans/dockerhub-description@v2
-      #   with:
-      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
-      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
-      #     short-description: Dynamic PVC provisioner for pods and jobs requesting it via annotations. Automatic PV releaser.
-      #     repository: plumbit/kubernetes-dynamic-reclaimable-pvc-controllers
+      - name: Docker Hub Image digest
+        run: echo ${{ steps.docker_hub_build.outputs.digest }}
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/')
