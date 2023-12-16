@@ -22,6 +22,7 @@ Dynamic PVC provisioner for pods requesting it via annotations. Automatic PV rel
 ## Features
 
 - PVC Provisioner
+  - DEPRECATED - functionality is now provided out of the box with `ephemeral` volumes
   - Dynamically create PVC for Pods requesting it via the annotations.
   - Pod is automatically set as `ownerReferences` to the PVC - guaranteeing its deletions upon Pod deletion.
 - PV Releaser
@@ -56,6 +57,10 @@ StatefulSets are idiomatic way to reuse PVs and preserve data in Kubernetes. It 
 
 ### But why dynamic PVC provisioning from the pod annotations?
 
+No reason anymore - use `ephemeral` volumes.
+
+Old explanation:
+
 Everything said above explains only the need in automatic PV Releaser, but what is dynamic PVC Provisioner for?
 
 Indeed you might not need it in most of the cases, that's why PVC Provisioner and PV Releaser are two separate controllers and they could be deployed separately. And that's why PV Releaser can disable automatic PV association. If you want to craft either PV or PVC by yourself - you can do that, just don't forget to put a label on it so PV Releaser knows it needs to make it `Available`.
@@ -63,6 +68,8 @@ Indeed you might not need it in most of the cases, that's why PVC Provisioner an
 Some CI/CD engines like Jenkins with Kubernetes Plugin only allows you to define a build pod and no additional resources. That makes PV Releaser unusable as something needs to create a PVC for the build pod. PVC Provisioner is a great workaround in this case - you can define a PVC right on the pod as annotation.
 
 ## PVC Provisioner Controller
+
+It should not be used anymore in favor of `ephemeral` volumes. Provisioner code will eventually be removed from this repository.
 
 ### Provision
 
