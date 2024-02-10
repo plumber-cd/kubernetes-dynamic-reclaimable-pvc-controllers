@@ -29,44 +29,35 @@ volumeBindingMode: WaitForFirstConsumer
 
 For maximizing cache hit ratio - you may want to have a separate SC per each cache type, i.e. Maven, Gradle, Go, etc.
 
-Now, you can request for a PVC as part of the pod (via annotations) in a `podTemplate` in your Jenkinsfile:
+Now, you can create a pod with ephemeral volumes using that reclaimable storage classes via a `podTemplate` in your Jenkinsfile:
 
 ```groovy
 podTemplate(yaml: """
     apiVersion: v1
     kind: Pod
     metadata:
-      annotations:
-        dynamic-pvc-provisioner.kubernetes.io/maven-cache.enabled: "true"
-        dynamic-pvc-provisioner.kubernetes.io/maven-cache.pvc: |
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          spec:
-            storageClassName: jenkins-maven-cache
-            resources:
-              requests:
-                storage: 1Gi
-            accessModes:
-              - ReadWriteOnce
-        dynamic-pvc-provisioner.kubernetes.io/golang-cache.enabled: "true"
-        dynamic-pvc-provisioner.kubernetes.io/golang-cache.pvc: |
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          spec:
-            storageClassName: jenkins-golang-cache
-            resources:
-              requests:
-                storage: 1Gi
-            accessModes:
-              - ReadWriteOnce
     spec:
       volumes:
         - name: maven-cache
-          persistentVolumeClaim:
-            claimName: ${UUID.randomUUID()}
+          ephemeral:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: jenkins-maven-cache
+                resources:
+                  requests:
+                    storage: 1Gi
+                accessModes:
+                  - ReadWriteOnce
         - name: golang-cache
-          persistentVolumeClaim:
-            claimName: ${UUID.randomUUID()}
+          ephemeral:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: jenkins-golang-cache
+                resources:
+                  requests:
+                    storage: 1Gi
+                accessModes:
+                  - ReadWriteOnce
       securityContext:
         supplementalGroups: [1000]
         fsGroup: 1000
@@ -111,5 +102,3 @@ podTemplate(yaml: """
     }
 }
 ```
-
-Since provisioner was implemented as a regular controller and not admission controller and Pod resources are immutable (for the most part) - `spec.volumes[].persistentVolumeClaim.claimName` must be set before the Pod is created. We use a `${UUID.randomUUID()}` for that.
