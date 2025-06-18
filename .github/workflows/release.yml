@@ -2,6 +2,12 @@ name: Release
 run-name: "${{ inputs.releaseVersion }}"
 
 on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       releaseType:
@@ -47,7 +53,12 @@ jobs:
         run: |
           echo "RUNNER_ARCH=arm64" >> $GITHUB_ENV
 
+      - name: Set tag name
+        run: |
+          echo "TAG_NAME=dev" >> $GITHUB_ENV
+
       - name: Set release tag name
+        if: github.event_name == 'workflow_dispatch'
         run: |
           TAG_NAME=${{ github.event.inputs.releaseVersion }}
           echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
@@ -66,6 +77,7 @@ jobs:
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
+        if: github.event_name == 'workflow_dispatch'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -85,12 +97,14 @@ jobs:
           outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Export digest
+        if: github.event_name == 'workflow_dispatch'
         run: |
           mkdir -p /tmp/digests
           digest="${{ steps.build.outputs.digest }}"
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: digests-${{ env.RUNNER_ARCH }}
@@ -103,6 +117,7 @@ jobs:
     name: Docker Merge and Push
     needs:
       - docker
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - name: Set release tag name
         run: |
@@ -150,6 +165,7 @@ jobs:
     name: Create Release
     needs:
       - merge
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - name: Create Release
         id: create_release
