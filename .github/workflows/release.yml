@@ -1,84 +1,168 @@
-name: Create Release
+name: Release
+run-name: "${{ inputs.releaseVersion }}"
 
-# on: push
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      releaseType:
+        type: choice
+        description: What kind of release?
+        options:
+        - draft-prerelease
+        - prerelease
+        - draft
+        - release
+      releaseVersion:
+        type: string
+        description: Version
+        required: true
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+permissions:
+  contents: write
+  packages: write
+  checks: write
+  statuses: write
 
 jobs:
-  build:
-    name: Docker
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+  docker:
+    name: Docker Build on ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
-      - name: Set RELEASE_VERSION
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
-      - name: Set RELEASE_STRING
-        run: echo "RELEASE_STRING=v${RELEASE_VERSION}" >> $GITHUB_ENV
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Log in to GitHub registry
-        uses: docker/login-action@v2
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set arch to amd64
+        if: matrix.runner == 'ubuntu-24.04'
+        run: |
+          echo "RUNNER_ARCH=amd64" >> $GITHUB_ENV
+
+      - name: Set arch to arm64
+        if: matrix.runner == 'ubuntu-24.04-arm'
+        run: |
+          echo "RUNNER_ARCH=arm64" >> $GITHUB_ENV
+
+      - name: Set release tag name
+        run: |
+          TAG_NAME=${{ github.event.inputs.releaseVersion }}
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          registry: ${{ env.REGISTRY }}
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ env.TAG_NAME }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-      - name: Build and Push
-        id: docker_build
-        uses: docker/build-push-action@v3
-        with:
+          context: .
+          platforms: linux/${{ env.RUNNER_ARCH }}
           build-args: |
-            RELEASE_STRING=${{ env.RELEASE_STRING }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+            VERSION=${{ env.TAG_NAME }}
           labels: ${{ steps.meta.outputs.labels }}
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
-      # For backward compatibility - push to Docker Hub
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
+          cache-from: type=gha,mode=max,scope=${{ env.RUNNER_ARCH }}
+          cache-to: type=gha,mode=max,scope=${{ env.RUNNER_ARCH }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build and Push to Docker Hub
-        id: docker_hub_build
-        uses: docker/build-push-action@v3
-        with:
-          build-args: |
-            RELEASE_STRING=${{ env.RELEASE_STRING }}
-          push: true
-          tags: |
-            plumbit/kubernetes-dynamic-reclaimable-pvc-controllers:${{ env.RELEASE_VERSION }}
-            plumbit/kubernetes-dynamic-reclaimable-pvc-controllers:latest
-      - name: Docker Hub Image digest
-        run: echo ${{ steps.docker_hub_build.outputs.digest }}
-  release:
-    name: Release
-    if: startsWith(github.ref, 'refs/tags/')
+          name: digests-${{ env.RUNNER_ARCH }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
     runs-on: ubuntu-latest
-    needs: build
+    name: Docker Merge and Push
+    needs:
+      - docker
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-      - name: Release
-        uses: docker://antonyurchenko/git-release:v4
+      - name: Set release tag name
+        run: |
+          TAG_NAME=${{ github.event.inputs.releaseVersion }}
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digests-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ env.TAG_NAME }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf 'ghcr.io/${{ github.repository }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
+
+  release:
+    runs-on: ubuntu-latest
+    name: Create Release
+    needs:
+      - merge
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ github.event.inputs.releaseVersion }}
+          generateReleaseNotes: true
+          commit: ${{ github.sha }}
+          tag: ${{ github.event.inputs.releaseVersion }}
+          allowUpdates: true
+          updateOnlyUnreleased: true
+          draft: ${{ github.event.inputs.releaseType == 'draft' || github.event.inputs.releaseType == 'draft-prerelease' }}
+          prerelease: ${{ github.event.inputs.releaseType == 'prerelease' || github.event.inputs.releaseType == 'draft-prerelease' }}
+          makeLatest: ${{ github.event.inputs.releaseType == 'release' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRAFT_RELEASE: "false"
-          PRE_RELEASE: "false"
-          CHANGELOG_FILE: "CHANGELOG.md"
-          ALLOW_EMPTY_CHANGELOG: "false"

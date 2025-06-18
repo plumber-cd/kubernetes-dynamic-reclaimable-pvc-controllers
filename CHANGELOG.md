@@ -1,5 +1,11 @@
 # Changelog
 
+*DEPRECATED*
+
+The release process is moved to GitHub Releases.
+Going forward, the Changelog will be added as Release Notes to each GitHub Release.
+This file will never be updated again, but will remain here for historical purposes.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
